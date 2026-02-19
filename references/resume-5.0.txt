@@ -1,0 +1,55 @@
+                                       Sambit Pradhan
+               Full Stack Developer — Backend Engineering — DevOps Enthusiast
+Skilled in building real-world MERN applications with a strong focus on scalability, API integration, and team collaboration.
+    +91-9830858111 | sambitpradhan.dev2004@gmail.com | linkedin.com/in/sambit-pradhan | github.com/NoobSambit
+
+Education
+  Vellore Institute of Technology                                                                           Vellore, India
+  B.Tech in Computer Science & Engineering (Spec. in Bioinformatics) — CGPA: 8.03/10                 Aug 2022 – May 2026
+Projects
+  ArmyVerse | Next.js 14, TypeScript, MongoDB, Groq (Llama 3.3 70B), Firebase, Spotify API                  GitHub | Live
+     – Architected a production-ready Full Stack platform with 1000+ signed-in users using Next.js 14 App Router and
+       TypeScript, managing 21 MongoDB models and 60+ serverless API endpoints supporting blogging, gaming, and
+       analytics modules with 1000+ quiz questions and 150+ collectible photocards.
+     – Engineered a BYO Spotify app system bypassing the 25-user dev limit through encrypted Client ID/Secret
+       (AES-256-GCM), PKCE secretless OAuth, and dual-mode playlist export supporting unlimited concurrent users.
+     – Built an AI-powered music recommendation engine integrating Groq SDK (Llama 3.3 70B) with 400+ line prompt
+       strategy processing 15+ acoustic parameters; developed a quest system with Last.fm integration featuring
+       daily/weekly streaming challenges, fuzzy track matching, token bucket rate limiting (5 req/sec), and 34 collectible
+       badges.
+     – Developed a complex gamification system (Boraverse) featuring pity-based RNG economy (guaranteed epic every
+       15 pulls, legendary every 50 pulls), crafting logic with dust economy, and ISO-week leaderboards handling state
+       management for 150+ collectible assets with server-side anti-cheat validation.
+     – Implemented dual-authentication combining Firebase Admin SDK (OAuth) and custom JWT, securing data with
+       AES-256-GCM encryption and Zod validation; built real-time data pipeline with Cheerio scrapers, automated Cron
+       jobs, and compound indexes for sub-second retrieval; created a Tiptap-based CMS with 20+ extensions supporting
+       nested comments and soft-deletion.
+
+  AI Document & Presentation Builder | Python, FastAPI, LangChain, Next.js, Groq, RAG, Firebase GitHub | Live
+     – Engineered an enterprise-grade GenAI platform using FastAPI and Next.js automating structured
+       document/PowerPoint creation with LangChain orchestration, Pydantic validation, and asynchronous processing
+       optimizing LLM inference to under 5 seconds.
+     – Architected a Retrieval-Augmented Generation (RAG) system integrating Google Custom Search and FAISS vector
+       storage to ground Llama 3.3 70B outputs in real-time web data with HuggingFace embeddings for semantic
+       similarity search, significantly reducing hallucinations.
+     – Developed a context-aware refinement engine analyzing adjacent section summaries for global document coherence
+       with sliding window context management and automatic word count adjustments (±30%) based on natural
+       language instructions.
+     – Built a dual-pipeline export service using python-docx and python-pptx rendering HTML content into 4
+       professional themes with dynamic layout adjustment; established production CI/CD pipeline deploying stateless
+       backend to Railway and frontend to Vercel with automated testing suites (Pytest/Jest).
+
+Technical Skills
+  Languages: TypeScript, JavaScript, Python, Java, C/C++, SQL, HTML, CSS
+  Frameworks/Tools: React.js, Next.js 14, Node.js, Express.js, Flask, FastAPI, TailwindCSS, Git, Docker, Firebase,
+  Railway, Vercel
+  Libraries: LangChain, Groq SDK, Gemini API, FAISS, python-docx/pptx, Recharts, Redux Toolkit, Framer Motion,
+  Zod, Tiptap
+  AI/NLP: LLM Integration, RAG Systems, Prompt Engineering, Vector Embeddings, OCR Pipelines
+
+Certifications
+  Generative AI using IBM Watsonx Studio                                                                             Verify
+
+Relevant Coursework
+  DSA, DBMS, Operating Systems, Computer Networks, Software Engineering, AI/ML, AWS Solution Architect
+
