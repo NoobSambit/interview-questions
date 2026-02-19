@@ -24,6 +24,9 @@ All phases now include answer files.
 - `long-form-answers/armyverse-important-long-form-answers.md`
 - `long-form-answers/docbuilder-important-long-form-answers.md`
 - `long-form-answers/cross-project-and-outside-resume-long-form-answers.md`
+- `system-designs/README.md`
+- `system-designs/armyverse-comprehensive-system-design.md`
+- `system-designs/docbuilder-comprehensive-system-design.md`
 - `answers/phase-01-resume-and-screening-answers.md`
 - `answers/phase-02-armyverse-core-answers.md`
 - `answers/phase-03-armyverse-deep-dive-answers.md`
