@@ -27,6 +27,7 @@ All phases now include answer files.
 - `system-designs/README.md`
 - `system-designs/armyverse-comprehensive-system-design.md`
 - `system-designs/docbuilder-comprehensive-system-design.md`
+- `non-negotiable/README.md`
 - `answers/phase-01-resume-and-screening-answers.md`
 - `answers/phase-02-armyverse-core-answers.md`
 - `answers/phase-03-armyverse-deep-dive-answers.md`

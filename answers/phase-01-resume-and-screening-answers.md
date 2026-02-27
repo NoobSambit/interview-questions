@@ -117,7 +117,7 @@ Answer: The question pipeline is script-based with validation checks for schema,
 Refs: `R5`, `R38`, `Documents/ARMYVERSE/data/questions.json`
 
 15. **You said 150+ collectible photocards. How was this ingested and deduplicated?**
-Answer: I used a Fandom gallery scraper that captures page, subcategory, image identity, and stable source keys for upsert-style storage. Deduplication is done using stable identifiers and source key logic in ingestion flow. This makes inventory import repeatable and safer.
+Answer: I used a Fandom gallery scraper to collect card data like page, subcategory, and image details. For deduplication, I used stable source keys/identifiers, so the same card is not inserted again in repeated runs. This keeps the import clean and repeatable.
 Refs: `R5`, `R39`, `Documents/ARMYVERSE/README.md:113`
 
 16. **You mentioned AES-256-GCM encryption. What exactly is encrypted and why?**
@@ -129,7 +129,8 @@ Answer: In BYO flow, some users do not provide client secret, so PKCE becomes th
 Refs: `R6`, `R15`, `Documents/ARMYVERSE/app/api/spotify/callback/route.ts:52`
 
 18. **You claim token-bucket rate limiting at 5 req/sec. Where is this applied and why 5?**
-Answer: It is used in Last.fm client wrapper to avoid burst overload and API failures. The limiter has `maxTokens=5` and `refillRate=5`, so calls are smoothed to about 5 req/sec. I selected this to stay safe for external API usage while keeping user response reasonable.
+Answer: I use this in the Last.fm client so we do not send too many requests at once. We allow around 5 requests per second, which is a safe speed for the API and still fast enough for users. This helps prevent temporary blocks and failed calls.
+Term meaning: `rate limiting` = controlling request speed, `token bucket` = small request budget that refills over time, `5 req/sec` = maximum about 5 requests in 1 second.
 Refs: `R8`, `R16`, `R17`
 
 19. **You claim AI prompt strategy of 400+ lines. How did you iterate and evaluate prompt quality?**
@@ -150,6 +151,15 @@ Refs: `R13`, `R48`, `R49`
 
 23. **You mention automated tests (Pytest/Jest). What core flows are currently covered?**
 Answer: Backend has Pytest for API-related behavior and workflow logic, and frontend has Jest setup for UI testing. ArmyVerse also has Jest tests around game modules and reward logic. Coverage exists, but I still consider integration test depth as next improvement area.
+Notes (easy words):
+- `Pytest` = Python testing tool. We write small checks to confirm backend APIs and logic behave correctly.
+- `Jest` = JavaScript/TypeScript testing tool. We use it to test frontend and shared JS/TS logic.
+- `UI testing` = checking if screen components render and respond correctly (like button click, text shown, state update).
+- `How it works`:
+  1. We write a test case (expected input + expected output).
+  2. Test runner executes code automatically.
+  3. If expected result matches, test passes. If not, test fails and shows where issue happened.
+- `Why useful` = catches bugs early before deployment and makes refactoring safer.
 Refs: `R13`, `R46`, `R47`, `Documents/ARMYVERSE/package.json:15`
 
 24. **Which resume bullet is strongest evidence of production engineering maturity?**
