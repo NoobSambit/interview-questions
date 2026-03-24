@@ -1,135 +1,127 @@
-# DocBuilder (Non‑Negotiable) — CI/CD & Deployment
+# DocBuilder (Non-Negotiable) - CI/CD & Deployment
 
-These answers are written strictly from what exists in the repo: `Documents/docbuilder/`.
-
-Relevant code/config I am referencing:
-1. GitHub Actions workflow: `Documents/docbuilder/.github/workflows/ci.yml`
-2. Render config: `Documents/docbuilder/render.yaml`
-3. Railway config: `Documents/docbuilder/backend/railway.toml`
-4. Backend server entry: `Documents/docbuilder/backend/main.py`
-5. Env handling: `Documents/docbuilder/backend/app/db/firestore.py`, `Documents/docbuilder/backend/app/core/llm.py`, `Documents/docbuilder/backend/app/core/rag.py`
-6. Tests folder: `Documents/docbuilder/backend/tests/test_main.py`, `Documents/docbuilder/backend/tests/test_export.py`, `Documents/docbuilder/backend/tests/test_refinement.py`
+These answers are based on the actual DocBuilder implementation, but rewritten in simple interview language so they are easier to remember and explain.
 
 ---
 
 ## 1) Explain your CI/CD pipeline.
 
 ### Short intro
-I have a GitHub Actions pipeline that runs backend tests on every push and PR to `main`. Frontend CI steps exist but the build/test steps are currently commented out.
+My CI/CD setup is basic but useful. The main thing I automated is backend testing on every push and pull request to the main branch. That helps catch issues early before deployment.
 
 ### Step-by-step explanation
-1. The workflow triggers on `push` and `pull_request` to `main` (see `Documents/docbuilder/.github/workflows/ci.yml`).
-2. The `backend-test` job checks out code, sets up Python 3.9, installs `backend/requirements.txt`, exports dummy env vars (`GOOGLE_API_KEY`, `LLM_PROVIDER=mock`, `FIREBASE_CREDENTIALS`), and runs `pytest tests/` inside `backend`.
-3. The `frontend-test` job checks out code, sets up Node 18, installs frontend deps, and the build/test steps are currently commented out.
+1. Whenever code is pushed or a pull request is opened for the main branch, GitHub Actions starts the workflow.
+2. The backend job installs Python dependencies and runs the backend test suite.
+3. Dummy environment variables are provided so tests can run without real production secrets.
+4. There is also a frontend job setup, but some frontend build and test steps are still commented out.
+5. So in its current state, the pipeline mainly protects backend quality.
 
-### Design reasoning (why I did it)
-For a project like this, backend stability is the most important because it handles auth, data, LLM calls, and export generation. So I ensured backend tests run automatically first.
+### Design reasoning
+I focused first on backend CI because the backend handles the most critical parts of the product: auth, data, AI generation, and export. If that breaks, the product is basically unusable.
 
-### Possible improvement (1–2 lines)
-I would enable frontend build + tests in CI, and add lint/typecheck steps for both backend and frontend.
+### Possible improvement
+I would fully enable frontend checks and add linting, type-checking, and deployment gates before release.
 
 ### Hard Terms Explained Simply
-- `CI` = automatically run tests on code changes.
-- `CD` = automatically deploy when code is merged (not fully shown in this repo).
+- `CI` = automatically checking code when changes are pushed.
+- `CD` = automatically deploying or preparing deployment after code passes checks.
+- `Deployment gate` = a rule that blocks release if required checks fail.
 
 ---
 
 ## 2) What is stateless backend?
 
 ### Short intro
-A stateless backend means the server doesn’t keep user session state in memory between requests. Each request has everything needed (like the auth token), and data is stored in the database.
+A stateless backend means the server does not keep user-specific session data in its own memory between requests. Every request brings what it needs, and long-term data is stored in external systems like the database.
 
 ### Step-by-step explanation
-1. Auth is bearer-token based: each request includes `Authorization: Bearer <token>`, and the backend verifies it in `Documents/docbuilder/backend/app/core/auth.py`.
-2. Project data is stored in Firestore, and the backend fetches/updates documents in the `projects` collection (see `Documents/docbuilder/backend/app/api/endpoints.py`).
-3. Exports are generated on-demand and streamed back. The server doesn’t store “export sessions”; it just generates and returns the file (see `StreamingResponse` in `Documents/docbuilder/backend/app/api/endpoints.py`).
+1. In DocBuilder, each request includes an auth token.
+2. The backend verifies that token for that request and decides whether the user is allowed.
+3. Project data is not stored inside the running server. It is stored in Firestore.
+4. Export files are generated when needed and sent back immediately, rather than being stored as ongoing server sessions.
+5. This means any backend instance can usually handle any valid request, which makes deployment easier.
 
-Important implementation detail:
-1. There is also a local `.langchain_cache.db` file used for caching LLM calls (`Documents/docbuilder/backend/app/core/llm.py`).
-2. That is “local instance state” and may not persist across deployments/instances, so I treat it as an optimization, not a required state.
+### Design reasoning
+Stateless design is easier to scale and simpler to reason about in cloud environments. It reduces dependency on one specific server instance.
 
-### Design reasoning (why I did it)
-Stateless designs are easier to deploy and scale because any server instance can handle any request.
-
-### Possible improvement (1–2 lines)
-If I want shared caching, I’d move cache to Redis so it’s consistent across instances.
+### Possible improvement
+If I want shared caching or job coordination, I would move that state into proper shared infrastructure like Redis or a job store.
 
 ### Hard Terms Explained Simply
-- `Stateless` = server does not remember you between requests.
-- `Bearer token` = a token you send with every request to prove identity.
+- `Stateless` = the server does not remember your personal session data between requests.
+- `Instance` = one running copy of the backend service.
 
 ---
 
 ## 3) How did you deploy to Railway?
 
 ### Short intro
-The repo includes a Railway deployment config for the backend. It runs uvicorn with the FastAPI app.
+I prepared the backend to run on Railway using a standard FastAPI production command. The deployment platform installs dependencies, then starts the API server.
 
 ### Step-by-step explanation
-1. Railway config is in `Documents/docbuilder/backend/railway.toml`.
-2. It installs dependencies using `pip install -r requirements.txt` (Nixpacks build).
-3. It starts the server with `uvicorn main:app --host 0.0.0.0 --port $PORT`.
-4. That matches the app entrypoint in `Documents/docbuilder/backend/main.py` where `app = FastAPI(...)` is defined.
+1. The deployment config tells Railway how to build the backend environment.
+2. It installs the Python requirements needed by the app.
+3. Then it starts the FastAPI server using Uvicorn.
+4. The app listens on the port provided by the platform.
+5. The repo also includes another deployment config for Render, which shows the backend was designed to be portable across hosting providers.
 
-Reality check from code/config:
-1. The repo also contains a Render config at `Documents/docbuilder/render.yaml` with a similar uvicorn start command.
-2. So the backend can be deployed in more than one way, depending on the platform.
+### Design reasoning
+I kept deployment simple and standard. FastAPI plus Uvicorn is a common production setup, and platform configs make it easier to repeat deployment consistently.
 
-### Design reasoning (why I did it)
-Using uvicorn is the standard way to serve FastAPI in production. Railway/Render configs keep deployment reproducible.
-
-### Possible improvement (1–2 lines)
-I’d add a clear “single source of truth” deployment doc and remove unused provider configs to reduce confusion.
+### Possible improvement
+I would clearly document which deployment platform is the primary one so there is less confusion between multiple config files.
 
 ### Hard Terms Explained Simply
-- `Uvicorn` = the server process that runs FastAPI.
-- `Nixpacks` = a build system Railway uses to build your app automatically.
+- `Portable` = easy to move and run on different platforms.
+- `Uvicorn` = the server that runs the FastAPI application.
 
 ---
 
 ## 4) How did you manage environment variables?
 
 ### Short intro
-I use environment variables for all secrets and provider configuration, and load local dev vars using `dotenv`.
+I used environment variables for configuration and secrets so that sensitive values are not hardcoded in the project.
 
 ### Step-by-step explanation
-1. The backend loads `.env` in multiple places using `load_dotenv()` (see `Documents/docbuilder/backend/main.py`, `Documents/docbuilder/backend/app/core/llm.py`, `Documents/docbuilder/backend/app/core/rag.py`, `Documents/docbuilder/backend/app/db/firestore.py`).
-2. Firestore credentials support `GOOGLE_SERVICE_ACCOUNT_JSON` (JSON string) or `GOOGLE_APPLICATION_CREDENTIALS` (file path), implemented in `Documents/docbuilder/backend/app/db/firestore.py`.
-3. RAG uses `GOOGLE_API_KEY` and `GOOGLE_CSE_ID` in `Documents/docbuilder/backend/app/core/rag.py`.
-4. LLM provider selection uses `LLM_PROVIDER`. Code truth: only `LLM_PROVIDER=groq` uses a real adapter; anything else falls back to `MockLLMAdapter` (see `Documents/docbuilder/backend/app/core/llm.py`).
+1. Local development can load values from a `.env` file.
+2. In deployment, the platform provides those values securely.
+3. This includes API keys, search configuration, and cloud credential settings.
+4. The backend reads those values to decide how to connect to Firestore, whether web search is available, and which LLM provider should be used.
+5. This keeps the same codebase flexible across development, testing, and production environments.
 
-### Design reasoning (why I did it)
-Secrets should not be hardcoded. Env vars are the standard way to configure deployments safely.
+### Design reasoning
+Hardcoding secrets is unsafe and hard to manage. Environment variables are the standard way to keep configuration separate from code.
 
-### Possible improvement (1–2 lines)
-I would centralize configuration into one module so env loading isn’t repeated in multiple files.
+### Possible improvement
+I would centralize all config loading in one module so validation and defaults are handled in one place.
 
 ### Hard Terms Explained Simply
-- `Env var` = a setting provided by the operating system for the app.
-- `Secret` = keys/passwords that must not be committed to Git.
+- `Environment variable` = a value given to the app from outside the code.
+- `Hardcoded` = directly written into the code, which is risky for secrets.
+- `Credential` = a secret or key used to access a service.
 
 ---
 
 ## 5) What tests did you write?
 
 ### Short intro
-I wrote backend tests for core API flows (health, projects, generation) and for export generation. The CI workflow runs `pytest` on `backend/tests/`.
+I wrote backend tests for the main user flow: basic API behavior, content generation flow, refinement flow, and export generation.
 
 ### Step-by-step explanation
-1. API tests: `Documents/docbuilder/backend/tests/test_main.py` uses FastAPI `TestClient` and covers unauthorized access, creating/listing projects with mocked Firestore, outline suggestion (Mock LLM), and section generation (Mock LLM).
-2. Export tests: `Documents/docbuilder/backend/tests/test_export.py` calls `ExportService.generate_docx(...)` and `ExportService.generate_pptx(...)` and checks the returned `BytesIO` is non-empty.
-3. Refinement tests: `Documents/docbuilder/backend/tests/test_refinement.py` tests refine, comments, and reactions using mocks.
+1. I tested basic API behavior such as health checks and protected route behavior.
+2. I tested project-related flows like creating and listing projects.
+3. I tested generation-related flows using mocked AI behavior so the tests stay stable and do not depend on a real external model.
+4. I tested refinement-related logic, along with comments and reactions.
+5. I also tested export generation to make sure DOCX and PPTX files are produced successfully.
+6. These tests protect the most important path a user takes through the product.
 
-Practical note from repo reality:
-1. Some tests rely on a `mock_token` bypass in auth (`Documents/docbuilder/backend/app/core/auth.py`).
-2. That’s helpful for test speed, but for production I would guard or remove such bypasses.
+### Design reasoning
+I focused on the paths that matter most in interviews and in real usage: can a user create content, improve it, and export it successfully?
 
-### Design reasoning (why I did it)
-I focused on tests that protect the “main user path”: create project, generate content, refine content, export.
-
-### Possible improvement (1–2 lines)
-I’d add integration tests that run with a Firestore emulator and verify real auth behavior (no mock token).
+### Possible improvement
+I would add more integration tests using emulators or test environments so the system is verified in a setup closer to production.
 
 ### Hard Terms Explained Simply
-- `Mock` = fake object used in tests so we don’t call real services.
-- `Integration test` = test that checks multiple parts work together, not just one function.
+- `Mocked AI behavior` = fake AI responses used in tests so results stay predictable.
+- `Integration test` = a test that checks multiple parts of the system working together.
+- `Protected route` = an API endpoint that only logged-in users are allowed to access.

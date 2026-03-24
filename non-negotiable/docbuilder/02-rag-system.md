@@ -1,228 +1,203 @@
-# DocBuilder (Non‑Negotiable) — RAG System
+# DocBuilder (Non-Negotiable) - RAG System
 
-These answers are written strictly from what exists in the repo: `Documents/docbuilder/`.
-
-Relevant code I am referencing:
-1. RAG retriever: `Documents/docbuilder/backend/app/core/rag.py`
-2. LLM adapter + prompting: `Documents/docbuilder/backend/app/core/llm.py`
-3. API route that triggers generation (and can enable RAG): `Documents/docbuilder/backend/app/api/endpoints.py`
+These answers are based on the actual DocBuilder implementation, but rewritten in simple interview language so they are easier to remember and explain.
 
 ---
 
 ## 1) Explain your RAG pipeline step-by-step.
 
 ### Short intro
-In DocBuilder, RAG is an optional mode during section generation. When enabled, the backend does a web search, downloads a few pages, chunks them, embeds the chunks, and then feeds the best chunks into the LLM prompt as “web research context”.
+In DocBuilder, RAG is an optional feature used while generating a section. If the user turns it on, the backend first gathers outside information from the web, then gives that information to the AI so the answer is more grounded.
 
 ### Step-by-step explanation
-1. The user triggers section generation via `POST /projects/{project_id}/generate`, and can pass `use_rag` in the request body (see `GenerateContentRequest` in `Documents/docbuilder/backend/app/models.py`).
-2. The route calls `adapter.generate_section(..., use_rag=request.use_rag or False)` in `Documents/docbuilder/backend/app/api/endpoints.py`.
-3. If `use_rag=True`, the Groq adapter in `Documents/docbuilder/backend/app/core/llm.py` calls the retriever: `retriever.get_relevant_context(section_title, topic, doc_type, top_k=5)`.
-4. Inside `Documents/docbuilder/backend/app/core/rag.py`, the retriever builds a search query (`formulate_search_query()`), runs Google Search (only if `GOOGLE_API_KEY` and `GOOGLE_CSE_ID` exist), then downloads the top pages with `requests.get(...)`.
-5. It cleans the HTML using BeautifulSoup (it removes things like `script/style/nav/footer/header`) and limits the extracted text (about `5000` characters per page).
-6. It chunks the text using `RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)`.
-7. It embeds chunks using `HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2", device="cpu")`.
-8. It builds an in-memory FAISS index and runs `similarity_search(f"{section_title} {topic}", k=top_k)` to pick the most relevant chunks.
-9. It returns a combined context string plus source metadata (URL + title).
-10. The LLM prompt injects this as `WEB RESEARCH CONTEXT` in `Documents/docbuilder/backend/app/core/llm.py` and tells the model to synthesize instead of copying verbatim.
+1. The user starts section generation and chooses whether research support should be used.
+2. If RAG is enabled, the backend creates a search query from the topic and section title.
+3. It searches the web for relevant pages.
+4. It downloads a few of those pages and cleans the raw HTML so only useful text remains.
+5. That text is split into smaller chunks because large pages are too broad to search well.
+6. Each chunk is converted into an embedding, which is a numeric representation of meaning.
+7. The system compares the query with those chunk embeddings and keeps the most relevant chunks.
+8. The best chunks are added into the prompt as research context.
+9. Then the LLM generates the section using both the user request and the retrieved research.
+10. If search is not configured or fails, the app falls back safely so generation still continues.
 
-Important fallback behavior (still part of the real pipeline):
-1. If Google credentials are missing, `search_enabled` becomes false and RAG returns a mock `Document(...)` instead of real web pages.
-2. If Google search fails, it returns “fallback mock content” so generation doesn’t crash.
+### Design reasoning
+I made RAG optional because not every section needs outside research. That keeps normal generation faster and cheaper, while still allowing more factual support when needed.
 
-### Design reasoning (why I did it)
-1. It’s optional (`use_rag`) so normal generation can stay cheap and fast.
-2. It keeps the app “more grounded” for factual topics by supplying outside context.
-3. Using local HuggingFace embeddings avoids extra paid API calls for embeddings.
-
-### Possible improvement (1–2 lines)
-I would persist the vector store per project (instead of building it each time) and add better source filtering to reduce low-quality web pages.
+### Possible improvement
+I would store reusable research data instead of rebuilding it every time, and I would add better filtering so weak websites are less likely to influence the answer.
 
 ### Hard Terms Explained Simply
-- `RAG` = search first, then ask the LLM using the search results as context.
-- `Chunking` = splitting big text into smaller pieces so search works better.
+- `RAG` = retrieve information first, then generate the answer using that information.
+- `Grounded` = based on real supporting information, not only on the model's memory.
+- `Embedding` = a numeric form of text that helps the system compare meaning.
 
 ---
 
 ## 2) What is vector embedding?
 
 ### Short intro
-An embedding is a way to convert text into numbers so we can “compare meaning” using math.
+A vector embedding is a way to convert text into numbers so the system can compare meaning using math instead of exact word matching.
 
 ### Step-by-step explanation
-1. In my RAG code, each chunk of text becomes a vector using `HuggingFaceEmbeddings`.
-2. Similar meaning chunks get vectors that are close to each other.
-3. Then I can search “which chunk is closest to my question/section title”.
+1. A sentence or paragraph is turned into a long list of numbers.
+2. That list captures the meaning of the text in a machine-friendly form.
+3. Texts with similar meaning usually end up closer to each other in that numeric space.
+4. So when the user asks about a topic, the system can find chunks that are semantically close even if they do not use the exact same words.
+5. This is why embeddings are useful for retrieval in RAG.
 
-Where it happens in my project:
-1. `Documents/docbuilder/backend/app/core/rag.py` initializes embeddings with `sentence-transformers/all-MiniLM-L6-v2`.
-2. It then builds FAISS index from those embeddings.
+### Design reasoning
+I used embeddings because keyword matching alone is too shallow. It can miss useful content when the wording changes but the meaning is still relevant.
 
-### Design reasoning (why I did it)
-Keyword search alone misses semantically relevant text. Embeddings help find content that “means the same thing” even if wording differs.
-
-### Possible improvement (1–2 lines)
-I would add an option to switch embedding models and benchmark accuracy vs speed.
+### Possible improvement
+I would compare different embedding models and choose the best one based on speed, quality, and cost.
 
 ### Hard Terms Explained Simply
-- `Vector` = a list of numbers that represents text.
-- `Semantic` = meaning-based (not exact word matching).
+- `Vector` = a list of numbers.
+- `Semantic` = related to meaning, not just exact words.
 
 ---
 
 ## 3) What is cosine similarity?
 
 ### Short intro
-Cosine similarity is one common way to measure how close two vectors are (how similar two texts are).
+Cosine similarity is a way to measure how close two embeddings are. In simple terms, it tells us how similar two pieces of text are in meaning.
 
 ### Step-by-step explanation
-1. Each text chunk has an embedding vector.
-2. The query (section title + topic) also becomes a vector.
-3. Cosine similarity gives a score for closeness.
-4. Higher score means “more related”.
+1. The query is converted into an embedding.
+2. Each text chunk is also converted into an embedding.
+3. The system compares the direction of those vectors.
+4. If the vectors point in a similar direction, the texts are considered similar.
+5. A higher similarity score means the chunk is a better match for the query.
 
-In my code:
-1. I don’t manually compute cosine similarity.
-2. I call `FAISS.similarity_search(...)` and FAISS handles the similarity scoring internally.
-3. This is in `Documents/docbuilder/backend/app/core/rag.py`.
+### Design reasoning
+I rely on the similarity search tools provided by the vector library instead of writing the math manually. That keeps the code simpler and uses a standard retrieval approach.
 
-### Design reasoning (why I did it)
-I use the standard vector-search approach that LangChain + FAISS provide, instead of writing math code myself.
-
-### Possible improvement (1–2 lines)
-I would log similarity scores and add a minimum threshold so irrelevant chunks are filtered out.
+### Possible improvement
+I would log similarity scores and ignore chunks below a minimum quality threshold.
 
 ### Hard Terms Explained Simply
-- `Similarity score` = number that tells “how close these texts are”.
-- `Threshold` = a cut-off value, like “only accept score above X”.
+- `Similarity score` = a number that shows how closely two texts match.
+- `Threshold` = the minimum score required before we accept something.
 
 ---
 
 ## 4) What is FAISS?
 
 ### Short intro
-FAISS is a library for fast similarity search on vectors. In my project it acts like a quick “vector database” in memory.
+FAISS is a library that helps search through embeddings quickly. In DocBuilder, it works like a lightweight in-memory vector search engine.
 
 ### Step-by-step explanation
-1. I create a list of chunk documents.
-2. I embed them into vectors.
-3. I build an index: `FAISS.from_documents(chunks, embeddings)`.
-4. I query it: `vectorstore.similarity_search(query, k=...)`.
-5. It returns the most relevant chunks.
+1. First, I collect text chunks from the retrieved web pages.
+2. Then I create embeddings for those chunks.
+3. FAISS builds an index over those embeddings.
+4. When I search with the query embedding, FAISS quickly returns the closest matches.
+5. Those matches become the context sent to the LLM.
 
-Where it happens:
-1. `Documents/docbuilder/backend/app/core/rag.py` imports `FAISS` from `langchain_community.vectorstores`.
+### Design reasoning
+I chose FAISS because it is simple, fast, and good enough for a project where the index is created during the request. I did not need a full hosted vector database for this stage.
 
-### Design reasoning (why I did it)
-It’s simple and local. For my project size, I don’t need a hosted vector DB to get RAG working.
-
-### Possible improvement (1–2 lines)
-For large scale, I’d move to a persistent vector database so I don’t rebuild the index every request.
+### Possible improvement
+If the product scales, I would move to a persistent vector store so retrieval is faster and reusable across requests.
 
 ### Hard Terms Explained Simply
-- `Index` = a data structure that makes searching fast.
-- `Vector DB` = storage optimized to search embeddings.
+- `Index` = a structure that makes searching faster.
+- `Vector search engine` = a tool that searches based on meaning represented by embeddings.
 
 ---
 
 ## 5) How does similarity search work?
 
 ### Short intro
-Similarity search means: “find the text chunks whose embeddings are closest to my query embedding.”
+Similarity search means finding the chunks whose meaning is closest to the user's topic.
 
 ### Step-by-step explanation
-1. Split pages into chunks.
-2. Convert each chunk into an embedding.
-3. Convert query into an embedding.
-4. Search the index for the closest vectors.
-5. Return top K chunks.
-6. Use those chunks in the LLM prompt.
+1. Split the collected research text into smaller chunks.
+2. Turn each chunk into an embedding.
+3. Turn the user query into an embedding too.
+4. Compare the query embedding with all chunk embeddings.
+5. Keep the top few chunks that are most similar.
+6. Use those chunks as context for generation.
 
-In my code:
-1. The key call is `vectorstore.similarity_search(f"{section_title} {topic}", k=...)` in `Documents/docbuilder/backend/app/core/rag.py`.
+### Design reasoning
+This approach is much better than sending all collected text to the model. It keeps only the parts that are most likely to help with the specific section being generated.
 
-### Design reasoning (why I did it)
-It gives context that is actually relevant to the section title, not just random web text.
-
-### Possible improvement (1–2 lines)
-I’d add deduplication across sources and limit chunks per domain so one website doesn’t dominate the context.
+### Possible improvement
+I would add deduplication so very similar chunks do not all take up prompt space.
 
 ### Hard Terms Explained Simply
-- `Top K` = the best K results (like top 5).
-- `Query` = the text you are searching for.
+- `Top few chunks` = the best matching pieces of text.
+- `Prompt space` = the amount of text we can safely send to the model in one request.
 
 ---
 
 ## 6) What is chunking?
 
 ### Short intro
-Chunking is splitting big web pages into smaller pieces so embeddings and retrieval become accurate and fast.
+Chunking means breaking large text into smaller pieces so retrieval becomes more accurate and manageable.
 
 ### Step-by-step explanation
-1. Web pages can be very long.
-2. If I embed the full page as one vector, it becomes too broad and noisy.
-3. So I split into chunks of about 800 characters.
-4. I also overlap by 100 characters so important sentences near boundaries aren’t lost.
+1. Web pages are often too large and contain many different ideas.
+2. If I treat the whole page as one unit, the meaning becomes too broad.
+3. So I split the page into smaller chunks.
+4. Each chunk is easier to embed and compare with the query.
+5. This improves retrieval quality because the system can match a specific part of a page instead of the whole page.
 
-In my code:
-1. `RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)` in `Documents/docbuilder/backend/app/core/rag.py`.
+### Design reasoning
+I used chunking because retrieval works best when each piece of text represents a focused idea instead of a very large mixed document.
 
-### Design reasoning (why I did it)
-Small chunks make retrieval more precise because the “meaning vector” represents a tighter topic.
-
-### Possible improvement (1–2 lines)
-I would experiment with chunking by headings (HTML `<h1>/<h2>`) instead of pure character splitting.
+### Possible improvement
+I would try smarter chunking based on headings or section structure, not only raw length.
 
 ### Hard Terms Explained Simply
-- `Overlap` = repeating a small part between chunks so context is continuous.
-- `Splitter` = the tool that breaks text into chunks.
+- `Chunk` = a smaller piece of a larger document.
+- `Focused idea` = one clear topic instead of many mixed topics.
 
 ---
 
 ## 7) What is sliding window context?
 
 ### Short intro
-In my implementation, “sliding window” basically shows up as overlapping chunks. I don’t have a separate explicit sliding window feature beyond `chunk_overlap`.
+In this project, sliding window behavior mainly appears through overlapping chunks. It means nearby chunks share a little text so important information is not lost at the boundary.
 
 ### Step-by-step explanation
-1. When I chunk text, I do `chunk_overlap=100`.
-2. That means chunk N and chunk N+1 share some text.
-3. So the retriever can still capture a point even if it sits between two chunks.
+1. When text is split into chunks, a sentence might land right at the end of one chunk.
+2. If there is no overlap, that sentence may lose context.
+3. So I repeat a small portion of text between neighboring chunks.
+4. That way, ideas near the boundary still appear in more than one chunk.
+5. This improves the chance that retrieval keeps the right context.
 
-Where it happens:
-1. Chunk overlap is in `Documents/docbuilder/backend/app/core/rag.py`.
+### Design reasoning
+I used overlap because it is a simple and practical way to preserve continuity without adding complicated logic.
 
-### Design reasoning (why I did it)
-It’s a simple way to preserve continuity without complex logic.
-
-### Possible improvement (1–2 lines)
-I’d tune overlap based on document type: higher overlap for technical topics, lower overlap for general topics.
+### Possible improvement
+I would tune overlap size based on content type, because some topics need more context continuity than others.
 
 ### Hard Terms Explained Simply
-- `Sliding window` = moving a window over text so each piece shares some context.
-- `Overlap` = shared text between pieces.
+- `Boundary` = the point where one chunk ends and the next starts.
+- `Continuity` = keeping the meaning connected across chunks.
 
 ---
 
 ## 8) How did you reduce hallucination?
 
 ### Short intro
-I reduce hallucination mainly by grounding the LLM with retrieved web context (RAG) and forcing structured outputs using Pydantic parsing.
+I reduced hallucination mainly in two ways: by giving the model outside research context through RAG, and by forcing outputs into a structured format. That does not make hallucination impossible, but it reduces it.
 
 ### Step-by-step explanation
-1. Grounding via RAG: when `use_rag=True`, I inject “WEB RESEARCH CONTEXT” into the prompt (see `Documents/docbuilder/backend/app/core/llm.py`). That context is built from web pages (when keys are configured) in `Documents/docbuilder/backend/app/core/rag.py`.
-2. Structured outputs: I use `PydanticOutputParser` so the LLM must return a predictable structure based on schemas in `Documents/docbuilder/backend/app/models.py`. This reduces format failures and random output.
-3. Safety fallback: if web search fails, the retriever returns mock fallback content instead of crashing. That keeps UX stable, but it does not guarantee factual accuracy.
+1. When RAG is enabled, the model gets research context related to the topic instead of relying only on its internal memory.
+2. That makes it more likely to stay close to real information.
+3. I also use structured outputs, so the model is guided to answer in a predictable format instead of wandering into random text.
+4. This reduces both factual drift and formatting problems.
+5. Still, if the source quality is poor, the model can produce weak or incorrect content, so RAG lowers hallucination risk but does not fully remove it.
 
-Important honesty point (from the code reality):
-1. RAG reduces hallucination, but it does not “eliminate” it. The model can still make mistakes, especially if the retrieved sources are weak.
+### Design reasoning
+For a document generation product, factual quality matters. Pure prompting was not enough, so grounding the model with retrieved context was the practical next step.
 
-### Design reasoning (why I did it)
-For a doc builder, factual grounding is important. RAG is the simplest working step-up over “pure prompt” generation.
-
-### Possible improvement (1–2 lines)
-I’d add citations into the generated content (link each claim to a source URL) and add a “fact-check pass” for high-risk topics.
+### Possible improvement
+I would add citations in the output and possibly a second verification pass for topics where factual accuracy matters a lot.
 
 ### Hard Terms Explained Simply
-- `Hallucination` = when an LLM says something confidently but it’s wrong.
-- `Grounding` = giving the model real reference text so it stays accurate.
+- `Hallucination` = when the AI says something confidently that is wrong or unsupported.
+- `Structured format` = forcing the answer into a clear shape instead of fully free text.
+- `Citation` = showing which source supports a claim.
